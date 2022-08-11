@@ -19,8 +19,10 @@ app.use(cors());
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
 app.use(cookieParser());
+app.use("/uploads", express.static("uploads"));
 
 app.use("/api/users", require("./routes/user"));
+app.use("/api/product", require("./routes/product"));
 
 app.listen(port, () => {
   console.log(`server listening on ${port} port`);
