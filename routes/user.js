@@ -65,4 +65,62 @@ router.get("/register", auth, (req, res) => {
     return res.send({ success: true });
   });
 });
+
+router.post("/addToCart", auth, (req, res) => {
+  //카트안에 추가한 상품이 이미 있따면? -> quentity만 올려준다.
+  //있지 않다면? 필요한 상품정보를 주가해줘야한다.
+  const { productId } = req.body;
+
+  User.findOne({
+    _id: req.user._id,
+  }).exec((err, user) => {
+    if (err) return res.send({ success: false, err });
+
+    let duplicate = false;
+    user.cart.forEach((item, index) => {
+      if (item.id === productId) {
+        duplicate = true;
+      }
+    });
+
+    if (duplicate) {
+      //이미 있다면?
+
+      User.findOneAndUpdate(
+        {
+          _id: req.user._id,
+          "cart.id": productId,
+        },
+        {
+          $inc: {
+            "cart.$.quentity": 1,
+          },
+        },
+        { new: true }
+      ).exec((err, userInfo) => {
+        if (err) return res.send({ success: false, err });
+        return res.send({ success: true, cart: userInfo.cart });
+      });
+    } else {
+      User.findOneAndUpdate(
+        {
+          _id: req.user._id,
+        },
+        {
+          $push: {
+            cart: {
+              id: productId,
+              quentity: 1,
+              date: Date.now(),
+            },
+          },
+        },
+        { new: true }
+      ).exec((err, userInfo) => {
+        if (err) return res.send({ success: false, err });
+        return res.send({ success: true, cart: userInfo.cart });
+      });
+    }
+  });
+});
 module.exports = router;

@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 const multer = require("multer");
 const path = require("path");
+
 const auth = require("../middlewares/auth");
 const Product = require("../models/Product");
 
@@ -48,7 +49,66 @@ router.post("/upload", auth, (req, res) => {
 });
 
 router.post("/products", (req, res) => {
-  Product.find()
+  const limit = req.body.limit ? parseInt(req.body.limit) : 8;
+  const skip = req.body.skip ? parseInt(req.body.skip) : 0;
+  const searchText = req.body.searchText ? req.body.searchText : "";
+  let findArgs = {};
+
+  for (let key in req.body.filters) {
+    if (req.body.filters[key].length > 0) {
+      if (key === "price") {
+        findArgs[key] = {
+          $gte: req.body.filters[key][0],
+          $lte: req.body.filters[key][1],
+        };
+      } else {
+        findArgs[key] = req.body.filters[key];
+      }
+    }
+  }
+
+  Product.find(findArgs)
+    .find({
+      title: {
+        $regex: searchText,
+      },
+    })
+    .skip(skip)
+    .limit(limit)
+    .populate("writer")
+    .exec((err, products) => {
+      if (err) return res.send({ success: false, err });
+      // return res.send({ success: true, products });
+
+      Product.find(findArgs)
+        .find({
+          title: {
+            $regex: searchText,
+          },
+        })
+        .skip(skip + limit)
+        .limit(limit)
+        .exec((err, next) => {
+          if (err) return res.send({ success: false, err });
+          return res.send({
+            success: true,
+            products,
+            postSize: products.length,
+            isNext: next.length > 0,
+          });
+        });
+    });
+});
+
+router.get("/productById", (req, res) => {
+  const type = req.query.type;
+  const productId = req.query.id;
+
+  Product.find({
+    _id: {
+      $in: productId,
+    },
+  })
     .populate("writer")
     .exec((err, products) => {
       if (err) return res.send({ success: false, err });
