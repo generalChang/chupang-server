@@ -2,6 +2,8 @@ const express = require("express");
 const auth = require("../middlewares/auth");
 const Product = require("../models/Product");
 const User = require("../models/User");
+const mailer = require("../modules/mailSender");
+
 const router = express.Router();
 
 router.post("/register", (req, res) => {
@@ -44,6 +46,7 @@ router.get("/auth", auth, (req, res) => {
     _id: req.user._id,
     isAdmin: req.user.role === 0,
     isAuth: true,
+    passwordReset: req.user.passwordReset,
     username: req.user.username,
     email: req.user.email,
     gender: req.user.gender,
@@ -53,7 +56,7 @@ router.get("/auth", auth, (req, res) => {
   });
 });
 
-router.get("/register", auth, (req, res) => {
+router.get("/logout", auth, (req, res) => {
   User.findOneAndUpdate(
     {
       _id: req.user._id,
@@ -67,6 +70,53 @@ router.get("/register", auth, (req, res) => {
   });
 });
 
+router.post("/resetPassword", (req, res) => {
+  const { email } = req.body;
+  const randomPlainPassword = Math.floor(Math.random() * 10 ** 8)
+    .toString()
+    .padStart("0", 8); ///아무 비밀번호나 만들어준뒤,
+
+  User.getEncryptedPassword(randomPlainPassword, (err, encryptedPassword) => {
+    if (err) return res.send({ success: false, err });
+    User.findOneAndUpdate(
+      {
+        email,
+      },
+      {
+        passwordReset: true,
+        password: encryptedPassword,
+      }
+    ).exec((err, userInfo) => {
+      if (err) return res.send({ success: false, err });
+
+      mailer.sendGmail({
+        toEmail: email,
+        subject: "you reset your password!!!",
+        text: `password : ${randomPlainPassword}`,
+      });
+
+      return res.send({ success: true });
+    });
+  });
+});
+
+router.post("/updatePassword", auth, (req, res) => {
+  User.getEncryptedPassword(req.body.password, (err, encryptedPassword) => {
+    if (err) return res.send({ success: false, err });
+    User.findOneAndUpdate(
+      {
+        _id: req.user._id,
+      },
+      {
+        passwordReset: false,
+        password: encryptedPassword,
+      }
+    ).exec((err, userInfo) => {
+      if (err) return res.send({ success: false, err });
+      return res.send({ success: true });
+    });
+  });
+});
 router.post("/addToCart", auth, (req, res) => {
   //카트안에 추가한 상품이 이미 있따면? -> quentity만 올려준다.
   //있지 않다면? 필요한 상품정보를 주가해줘야한다.
@@ -158,6 +208,27 @@ router.get("/removeFromCart", auth, (req, res) => {
           cart,
         });
       });
+  });
+});
+
+router.post("/successBuy", (req, res) => {
+  ///user에 있는 cart를 비워준다.
+  ///user history에 간단한 결제정보 넣어준다.
+  ///payment에 상세 결제정보를 넣어줘야한다.
+  ///product에 sold를 변경해줘야한다.
+
+  let history = [];
+  let transactionData = {};
+
+  req.body.cartDetail.forEach((item, index) => {
+    history.push({
+      dateOfPurchase: Date.now(),
+      name: item.title,
+      id: item._id,
+      price: item.price,
+      quentity: item.quentity,
+      paymentId: req.body.paymentData.paymentID,
+    });
   });
 });
 module.exports = router;

@@ -16,6 +16,10 @@ const userSchema = mongoose.Schema({
     type: String,
     minlength: 5,
   },
+  passwordReset: {
+    type: Boolean,
+    default: false,
+  },
   gender: {
     type: Number,
     default: 0,
@@ -85,6 +89,15 @@ userSchema.statics.findUserByToken = function (token, cb) {
     User.findOne({ _id: decoded, token: token }).exec((err, userInfo) => {
       if (err) return cb(err);
       return cb(null, userInfo);
+    });
+  });
+};
+
+userSchema.statics.getEncryptedPassword = function (plainPassword, cb) {
+  bcrypt.genSalt(saltRounds, function (err, salt) {
+    bcrypt.hash(plainPassword, salt, function (err, hash) {
+      if (err) return cb(err);
+      return cb(null, hash);
     });
   });
 };
