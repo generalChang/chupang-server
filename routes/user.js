@@ -1,5 +1,6 @@
 const express = require("express");
 const auth = require("../middlewares/auth");
+const Product = require("../models/Product");
 const User = require("../models/User");
 const router = express.Router();
 
@@ -121,6 +122,42 @@ router.post("/addToCart", auth, (req, res) => {
         return res.send({ success: true, cart: userInfo.cart });
       });
     }
+  });
+});
+
+router.get("/removeFromCart", auth, (req, res) => {
+  User.findOneAndUpdate(
+    {
+      _id: req.user._id,
+    },
+    {
+      $pull: {
+        //카트필드에 있는 해당 id값을 갖는 녀석을 제거한다.
+        cart: {
+          id: req.query.productId,
+        },
+      },
+    },
+    { new: true }
+  ).exec((err, userInfo) => {
+    if (err) return res.send({ success: false, err });
+    let cart = userInfo.cart;
+    let array = cart.map((item, index) => {
+      return item.id;
+    });
+
+    Product.find({
+      _id: { $in: array },
+    })
+      .populate("writer")
+      .exec((err, productInfo) => {
+        if (err) return res.send({ success: false, err });
+        return res.send({
+          success: true,
+          productInfo,
+          cart,
+        });
+      });
   });
 });
 module.exports = router;

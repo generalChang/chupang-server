@@ -102,8 +102,14 @@ router.post("/products", (req, res) => {
 
 router.get("/productById", (req, res) => {
   const type = req.query.type;
-  const productId = req.query.id;
+  let productId = req.query.id;
 
+  if (type === "array") {
+    let newIds = productId.split(",");
+    productId = newIds.map((item, index) => {
+      return item;
+    });
+  }
   Product.find({
     _id: {
       $in: productId,
