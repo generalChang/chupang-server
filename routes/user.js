@@ -1,9 +1,10 @@
 const express = require("express");
 const auth = require("../middlewares/auth");
+const Payment = require("../models/Payment");
 const Product = require("../models/Product");
 const User = require("../models/User");
 const mailer = require("../modules/mailSender");
-
+const async = require("async");
 const router = express.Router();
 
 router.post("/register", (req, res) => {
@@ -211,7 +212,7 @@ router.get("/removeFromCart", auth, (req, res) => {
   });
 });
 
-router.post("/successBuy", (req, res) => {
+router.post("/successBuy", auth, (req, res) => {
   ///user에 있는 cart를 비워준다.
   ///user history에 간단한 결제정보 넣어준다.
   ///payment에 상세 결제정보를 넣어줘야한다.
@@ -228,6 +229,68 @@ router.post("/successBuy", (req, res) => {
       price: item.price,
       quentity: item.quentity,
       paymentId: req.body.paymentData.paymentID,
+    });
+  });
+
+  transactionData.user = {
+    id: req.user._id,
+    name: req.user.username,
+    email: req.user.email,
+  };
+
+  transactionData.data = req.body.paymentData;
+
+  transactionData.product = history;
+
+  User.findOneAndUpdate(
+    {
+      _id: req.user._id,
+    },
+    {
+      $push: {
+        history: history,
+      },
+      $set: {
+        cart: [],
+      },
+    },
+    { new: true }
+  ).exec((err, user) => {
+    if (err) return res.send({ success: false, err });
+
+    const payment = new Payment(transactionData);
+    payment.save((err, doc) => {
+      if (err) return res.send({ success: false, err });
+
+      let products = [];
+      doc.product.forEach((item, index) => {
+        products.push({
+          id: item.id,
+          quentity: item.quentity,
+        });
+      });
+
+      async.eachSeries(
+        products,
+        (item, callback) => {
+          Product.findOneAndUpdate(
+            {
+              _id: item.id,
+            },
+            {
+              $inc: {
+                sold: item.quentity,
+              },
+            },
+            { new: false },
+            callback
+          );
+        },
+        (err) => {
+          if (err) return res.send({ success: false, err });
+          return res.send({ success: true, cart: user.cart, cartDetail: [] });
+        }
+      );
     });
   });
 });
